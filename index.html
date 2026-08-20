@@ -2,54 +2,62 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>研究室 備品予約システム</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Supabase JS CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- FullCalendar CDN -->
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
-  <!-- Google API (Calendar連動用) -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://apis.google.com/js/api.js"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6; }
+    .fc-header-toolbar { font-size: 0.85rem; }
+  </style>
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body class="text-gray-800">
 
-  <header class="bg-emerald-800 text-white px-6 py-3 flex justify-between items-center shadow">
-    <h1 class="text-xl font-bold">研究室 備品予約システム</h1>
+  <!-- ヘッダー -->
+  <header class="bg-emerald-800 text-white px-6 py-3 flex justify-between items-center shadow-md">
+    <h1 class="text-xl font-bold tracking-wide">研究室 備品予約システム</h1>
     <div id="userInfo" class="text-sm"></div>
   </header>
 
-  <!-- サインインモーダル -->
-  <div id="authModal" class="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
-    <div class="bg-white p-6 rounded-lg shadow-xl w-96 text-center">
-      <h2 class="text-lg font-bold mb-4 text-emerald-800">サインイン</h2>
-      <button onclick="handleGoogleAuth()" class="w-full bg-emerald-700 text-white py-2 rounded font-bold text-sm hover:bg-emerald-800">
-        Googleアカウントでログイン
-      </button>
-    </div>
-  </div>
-
-  <!-- 初回ユーザー情報入力モーダル -->
-  <div id="registerModal" class="hidden fixed inset-0 bg-black/50 flex justify-center items-center z-50">
+  <!-- 1. メールアドレス入力モーダル -->
+  <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
     <div class="bg-white p-6 rounded-lg shadow-xl w-96">
-      <h2 class="text-lg font-bold mb-4 text-emerald-800">ユーザー初期登録</h2>
-      <form onsubmit="handleRegister(event)">
-        <div class="mb-3">
-          <label class="block text-xs font-bold mb-1">氏名</label>
-          <input type="text" id="regName" required class="w-full border rounded px-3 py-2 text-sm">
-        </div>
+      <h2 class="text-lg font-bold mb-2 text-emerald-800">サインイン</h2>
+      <p class="text-xs text-gray-600 mb-4">メールアドレスを入力してログインしてください。（未登録の場合は初期登録へ進みます）</p>
+      <form id="loginForm" onsubmit="handleLogin(event)">
         <div class="mb-4">
-          <label class="block text-xs font-bold mb-1">所属</label>
-          <input type="text" id="regDept" required placeholder="例: ○○研究室" class="w-full border rounded px-3 py-2 text-sm">
+          <label class="block text-xs font-semibold mb-1">メールアドレス</label>
+          <input type="email" id="loginEmail" required class="w-full border rounded px-3 py-2 text-sm focus:outline-emerald-600" placeholder="student@example.com">
         </div>
-        <button type="submit" class="w-full bg-emerald-700 text-white py-2 rounded font-bold text-sm">登録完了</button>
+        <button type="submit" id="btnLogin" class="w-full bg-emerald-700 text-white py-2 rounded hover:bg-emerald-800 font-semibold text-sm">次へ</button>
       </form>
     </div>
   </div>
 
-  <!-- メインコンテンツ -->
-  <main class="max-w-7xl mx-auto p-4 hidden" id="mainApp">
-    <!-- ダッシュボード -->
+  <!-- 2. 初回登録モーダル（未登録アドレスの場合のみ表示） -->
+  <div id="registerModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+    <div class="bg-white p-6 rounded-lg shadow-xl w-96">
+      <h2 class="text-lg font-bold mb-2 text-emerald-800">初期ユーザー登録</h2>
+      <p class="text-xs text-gray-600 mb-4">アカウントが見つかりません。氏名と所属を入力してください。</p>
+      <form id="registerForm" onsubmit="handleRegister(event)">
+        <div class="mb-3">
+          <label class="block text-xs font-semibold mb-1">氏名</label>
+          <input type="text" id="regName" required class="w-full border rounded px-3 py-2 text-sm focus:outline-emerald-600" placeholder="山田 太郎">
+        </div>
+        <div class="mb-4">
+          <label class="block text-xs font-semibold mb-1">所属</label>
+          <input type="text" id="regDept" required class="w-full border rounded px-3 py-2 text-sm focus:outline-emerald-600" placeholder="例: 情報工学研究室">
+        </div>
+        <button type="submit" id="btnRegister" class="w-full bg-emerald-700 text-white py-2 rounded hover:bg-emerald-800 font-semibold text-sm">登録して始める</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- メイン画面 -->
+  <main class="max-w-7xl mx-auto p-4">
     <div class="grid grid-cols-4 gap-4 mb-4">
       <div class="bg-white p-4 rounded shadow border-t-4 border-emerald-600 text-center">
         <div class="text-2xl font-bold" id="statEquip">0</div>
@@ -70,46 +78,58 @@
     </div>
 
     <div class="grid grid-cols-12 gap-6">
-      <!-- 予約フォーム ＆ リスト -->
       <div class="col-span-4 space-y-6">
+        <!-- 新規予約フォーム -->
         <div class="bg-white p-4 rounded shadow">
-          <h2 class="text-sm font-bold border-b pb-2 mb-3">📅 新規予約</h2>
-          <form onsubmit="handleBooking(event)">
+          <h2 class="text-sm font-bold border-b pb-2 mb-3 text-gray-700 flex items-center">
+            <span class="mr-1">📅</span> 新規予約
+          </h2>
+          <form id="bookingForm" onsubmit="handleBooking(event)">
             <div class="mb-3">
-              <label class="block text-xs font-bold mb-1">備品</label>
-              <select id="equipSelect" onchange="updateEquipInfo()" class="w-full border rounded p-1.5 text-sm"></select>
-              <div class="mt-2 text-xs bg-gray-50 p-2 rounded text-gray-600">
+              <label class="block text-xs font-semibold mb-1">備品</label>
+              <select id="equipSelect" onchange="updateEquipInfo()" class="w-full border rounded px-2 py-1.5 text-sm"></select>
+              <div id="equipDetail" class="mt-2 text-xs bg-gray-50 p-2 rounded text-gray-600 space-y-0.5">
                 <div>設置場所: <span id="infoLocation">-</span></div>
-                <div>必要講習: <span id="infoTraining" class="font-bold text-emerald-700">-</span></div>
+                <div>必要講習: <span id="infoTraining" class="font-semibold text-emerald-700">-</span></div>
               </div>
             </div>
+
             <div class="grid grid-cols-2 gap-2 mb-3">
               <div>
-                <label class="block text-xs font-bold mb-1">開始</label>
-                <input type="datetime-local" id="startTime" required class="w-full border rounded p-1 text-xs">
+                <label class="block text-xs font-semibold mb-1">開始日時</label>
+                <input type="datetime-local" id="startTime" required class="w-full border rounded px-2 py-1 text-xs">
               </div>
               <div>
-                <label class="block text-xs font-bold mb-1">終了</label>
-                <input type="datetime-local" id="endTime" required class="w-full border rounded p-1 text-xs">
+                <label class="block text-xs font-semibold mb-1">終了日時</label>
+                <input type="datetime-local" id="endTime" required class="w-full border rounded px-2 py-1 text-xs">
               </div>
             </div>
+
             <div class="mb-4">
-              <label class="block text-xs font-bold mb-1">利用目的</label>
-              <textarea id="purpose" rows="2" required class="w-full border rounded p-1 text-xs" placeholder="例: 実験のため"></textarea>
+              <label class="block text-xs font-semibold mb-1">利用目的</label>
+              <textarea id="purpose" rows="2" placeholder="例）○○実験のため" required class="w-full border rounded px-2 py-1 text-xs"></textarea>
             </div>
-            <button type="submit" class="w-full bg-emerald-700 text-white py-2 rounded font-bold text-xs hover:bg-emerald-800">
+
+            <button type="submit" id="btnSubmit" class="w-full bg-emerald-700 text-white py-2 rounded hover:bg-emerald-800 font-semibold text-xs transition">
               ✓ 予約する
             </button>
           </form>
         </div>
 
+        <!-- 予約一覧 -->
         <div class="bg-white p-4 rounded shadow">
-          <h2 class="text-sm font-bold border-b pb-2 mb-3">📑 予約一覧</h2>
+          <div class="flex justify-between items-center border-b pb-2 mb-3">
+            <h2 class="text-sm font-bold text-gray-700">📑 予約一覧</h2>
+            <div class="inline-flex rounded-md shadow-sm text-xs">
+              <button onclick="filterLogs('my')" id="btnFilterMy" class="px-2 py-1 bg-gray-700 text-white rounded-l">自分の予約</button>
+              <button onclick="filterLogs('all')" id="btnFilterAll" class="px-2 py-1 bg-gray-200 text-gray-700 rounded-r">すべて</button>
+            </div>
+          </div>
           <div id="logList" class="space-y-2 max-h-80 overflow-y-auto text-xs"></div>
         </div>
       </div>
 
-      <!-- カレンダー -->
+      <!-- 右側: カレンダー -->
       <div class="col-span-8 bg-white p-4 rounded shadow">
         <div id="calendar"></div>
       </div>
@@ -117,129 +137,115 @@
   </main>
 
   <script>
-    // ★ Supabase & Google 設定情報
+    // ▼▼▼ ご自身の Supabase 情報に書き換えてください ▼▼▼
     const SUPABASE_URL = 'https://venzrdwpkfmijiqocaee.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_OQhRrKbi37Sn3STe7rS2yQ_3uMkMYQn';
-    const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-    const GOOGLE_API_KEY = 'YOUR_GOOGLE_API_KEY';
-    const CALENDAR_ID = '85caa9b779f22c21536b5ca1c38adc01daf39508ad03fbb99e852cef98a671f4@group.calendar.google.com';
+    const SUPABASE_ANON_KEY = 'sb_publishable_OQhRrKbi37Sn3STe7rS2yQ_3uMkMYQn';
+    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
-    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    let currentUser = null, tokenClient = null, calendar = null;
-    let equipments = [], logs = [], users = [];
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    window.onload = () => {
-      // GAPI 初期化
-      gapi.load('client', async () => {
-        await gapi.client.init({ apiKey: GOOGLE_API_KEY, discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'] });
-      });
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email',
-        callback: async (resp) => {
-          if (resp.error) return;
-          const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: `Bearer ${resp.access_token}` } });
-          const userGoogle = await res.json();
-          await checkUserRegistration(userGoogle.email);
-        }
-      });
+    let AppState = { currentUser: null, tempEmail: '', equipments: [], logs: [], users: [], calendar: null, filterMode: 'my' };
+
+    window.onload = function() {
       initCalendar();
     };
 
-    function handleGoogleAuth() { tokenClient.requestAccessToken({ prompt: 'consent' }); }
+    async function handleLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('loginEmail').value.trim();
+      if (!email) return;
 
-    async function checkUserRegistration(email) {
-      const { data } = await db.from('users').select('*').eq('email', email).single();
-      document.getElementById('authModal').classList.add('hidden');
-      
-      if (data) {
-        currentUser = data;
-        startApp();
+      document.getElementById('btnLogin').disabled = true;
+
+      const { data: user, error } = await supabase.from('users').select('*').eq('email', email).maybeSingle();
+      document.getElementById('btnLogin').disabled = false;
+
+      if (error) {
+        alert('接続エラー: ' + error.message);
+        return;
+      }
+
+      if (user) {
+        AppState.currentUser = user;
+        document.getElementById('loginModal').classList.add('hidden');
+        await loadData();
       } else {
-        currentUser = { email: email, role: 'USERS', trainings: '' };
+        AppState.tempEmail = email;
+        document.getElementById('loginModal').classList.add('hidden');
         document.getElementById('registerModal').classList.remove('hidden');
       }
     }
 
     async function handleRegister(e) {
       e.preventDefault();
-      currentUser.name = document.getElementById('regName').value;
-      currentUser.dept = document.getElementById('regDept').value;
-      
-      await db.from('users').insert([currentUser]);
+      const name = document.getElementById('regName').value.trim();
+      const dept = document.getElementById('regDept').value.trim();
+
+      document.getElementById('btnRegister').disabled = true;
+
+      const newUserObj = { email: AppState.tempEmail, name: name, dept: dept, role: 'USER', trainings: '' };
+      const { data: newUser, error } = await supabase.from('users').insert([newUserObj]).select().single();
+
+      document.getElementById('btnRegister').disabled = false;
+
+      if (error) {
+        alert('登録に失敗しました: ' + error.message);
+        return;
+      }
+
+      AppState.currentUser = newUser;
       document.getElementById('registerModal').classList.add('hidden');
-      startApp();
+      await loadData();
     }
 
-    async function startApp() {
-      document.getElementById('mainApp').classList.remove('hidden');
-      document.getElementById('userInfo').innerText = `${currentUser.name} (${currentUser.dept}) / ${currentUser.role}`;
-      await refreshData();
-    }
-
-    async function refreshData() {
+    async function loadData() {
       const [eqRes, logRes, userRes] = await Promise.all([
-        db.from('equipments').select('*'),
-        db.from('logs').select('*'),
-        db.from('users').select('*')
+        supabase.from('equipments').select('*'),
+        supabase.from('bookings').select('*'),
+        supabase.from('users').select('*')
       ]);
 
-      equipments = eqRes.data || [];
-      logs = logRes.data || [];
-      users = userRes.data || [];
+      AppState.equipments = eqRes.data || [];
+      AppState.logs = logRes.data || [];
+      AppState.users = userRes.data || [];
 
       renderUI();
     }
 
     function initCalendar() {
-      calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+      const calendarEl = document.getElementById('calendar');
+      AppState.calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'timeGridWeek',
         locale: 'ja',
+        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
         slotMinTime: '08:00:00',
-        slotMaxTime: '20:00:00'
+        slotMaxTime: '20:00:00',
+        allDaySlot: false,
+        height: 'auto'
       });
-      calendar.render();
+      AppState.calendar.render();
     }
 
     function renderUI() {
-      document.getElementById('statEquip').innerText = equipments.length;
-      document.getElementById('statDisabled').innerText = equipments.filter(e => e.status === '利用不可').length;
-      document.getElementById('statBookings').innerText = logs.length;
-      document.getElementById('statUsers').innerText = users.length;
+      const u = AppState.currentUser;
+      document.getElementById('userInfo').innerText = `${u.name} (${u.dept}) / ${u.role}`;
 
-      const select = document.getElementById('equipSelect');
-      select.innerHTML = equipments.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+      document.getElementById('statEquip').innerText = AppState.equipments.length;
+      document.getElementById('statDisabled').innerText = AppState.equipments.filter(e => e.status === '利用不可').length;
+      document.getElementById('statBookings').innerText = AppState.logs.length;
+      document.getElementById('statUsers').innerText = AppState.users.length;
+
+      const equipSelect = document.getElementById('equipSelect');
+      equipSelect.innerHTML = AppState.equipments.map(e => `<option value="${e.id}">${e.name} (${e.location})</option>`).join('');
       updateEquipInfo();
 
-      // カレンダー描画
-      calendar.removeAllEvents();
-      calendar.addEventSource(logs.map(l => ({
-        id: l.id,
-        title: `${l.equip_name} (${l.user_email})`,
-        start: l.start_time,
-        end: l.end_time,
-        backgroundColor: l.user_email === currentUser.email ? '#047857' : '#4b5563'
-      })));
-
-      // リスト描画
-      const logList = document.getElementById('logList');
-      logList.innerHTML = logs.map(l => {
-        const canDelete = l.user_email === currentUser.email || currentUser.role === 'ADMIN';
-        return `
-          <div class="p-2 border rounded bg-gray-50 flex justify-between items-center">
-            <div>
-              <div class="font-bold">${l.equip_name}</div>
-              <div class="text-gray-500">${l.start_time.substring(0,16)} ～ ${l.end_time.substring(0,16)}</div>
-              <div class="text-gray-400">${l.purpose} (${l.user_email})</div>
-            </div>
-            ${canDelete ? `<button onclick="cancelBooking('${l.id}', '${l.calendar_event_id}')" class="text-red-600 border px-2 py-0.5 rounded">削除</button>` : ''}
-          </div>
-        `;
-      }).join('');
+      renderLogs();
+      updateCalendarEvents();
     }
 
     function updateEquipInfo() {
-      const equip = equipments.find(e => e.id === document.getElementById('equipSelect').value);
+      const selectedId = document.getElementById('equipSelect').value;
+      const equip = AppState.equipments.find(e => e.id === selectedId);
       if (equip) {
         document.getElementById('infoLocation').innerText = equip.location || '未設定';
         document.getElementById('infoTraining').innerText = equip.required_training || 'なし';
@@ -248,59 +254,88 @@
 
     async function handleBooking(e) {
       e.preventDefault();
-      const equip = equipments.find(e => e.id === document.getElementById('equipSelect').value);
-      const start = document.getElementById('startTime').value;
-      const end = document.getElementById('endTime').value;
-      const purpose = document.getElementById('purpose').value;
+      const u = AppState.currentUser;
+      const equipId = document.getElementById('equipSelect').value;
+      const equip = AppState.equipments.find(e => e.id === equipId);
 
-      // 講習判定 (USERSのみチェック)
-      if (currentUser.role !== 'ADMIN' && equip.required_training && equip.required_training !== 'なし') {
-        const myTrainings = currentUser.trainings ? currentUser.trainings.split(',') : [];
-        if (!myTrainings.includes(equip.required_training)) {
-          alert(`【予約エラー】「${equip.required_training}」の受講が必要です。`);
+      if (u.role !== 'ADMIN' && equip.required_training && equip.required_training !== 'なし') {
+        const userTrainings = u.trainings ? u.trainings.split(',') : [];
+        if (!userTrainings.includes(equip.required_training)) {
+          alert(`【予約エラー】\nこの備品の利用には「${equip.required_training}」の受講が必要です。`);
           return;
         }
       }
 
-      // 1. Google カレンダーへ連携
-      const calEvent = await gapi.client.calendar.events.insert({
-        calendarId: CALENDAR_ID,
-        resource: {
-          summary: `【予約】${equip.name} (${currentUser.name})`,
-          description: `目的: ${purpose}\n予約者: ${currentUser.email}`,
-          start: { dateTime: new Date(start).toISOString() },
-          end: { dateTime: new Date(end).toISOString() }
-        }
-      });
-
-      // 2. Supabase DBへ保存（爆速）
-      const bookingId = 'BK_' + Date.now();
-      await db.from('logs').insert([{
-        id: bookingId,
+      const bookingData = {
         equip_id: equip.id,
         equip_name: equip.name,
-        user_email: currentUser.email,
-        start_time: start,
-        end_time: end,
-        purpose: purpose,
-        history: `作成: ${new Date().toISOString()} (${currentUser.email})`,
-        calendar_event_id: calEvent.result.id
-      }]);
+        user_email: u.email,
+        user_name: u.name,
+        start_time: document.getElementById('startTime').value,
+        end_time: document.getElementById('endTime').value,
+        purpose: document.getElementById('purpose').value
+      };
 
-      alert('予約が完了しました');
-      await refreshData();
+      document.getElementById('btnSubmit').disabled = true;
+      const { error } = await supabase.from('bookings').insert([bookingData]);
+      document.getElementById('btnSubmit').disabled = false;
+
+      if (error) {
+        alert('予約エラー: ' + error.message);
+      } else {
+        alert('予約が完了しました！');
+        await loadData();
+      }
     }
 
-    async function cancelBooking(id, calEventId) {
-      if (!confirm('予約を取り消しますか？')) return;
+    function renderLogs() {
+      const logList = document.getElementById('logList');
+      const filtered = AppState.logs.filter(l => AppState.filterMode === 'my' ? l.user_email === AppState.currentUser.email : true);
 
-      if (calEventId) {
-        try { await gapi.client.calendar.events.delete({ calendarId: CALENDAR_ID, eventId: calEventId }); }
-        catch(err) { console.warn('Calendar delete error:', err); }
+      if (filtered.length === 0) {
+        logList.innerHTML = `<div class="text-center text-gray-400 py-4">予約はありません</div>`;
+        return;
       }
 
-      await db.from('logs').delete().eq('id', id);
-      await refreshData();
+      logList.innerHTML = filtered.map(l => {
+        const canDelete = l.user_email === AppState.currentUser.email || AppState.currentUser.role === 'ADMIN';
+        return `
+          <div class="border rounded p-2 bg-gray-50 flex justify-between items-center">
+            <div>
+              <div class="font-bold text-gray-800">${l.equip_name}</div>
+              <div class="text-gray-500">${l.start_time.replace('T', ' ')} ～ ${l.end_time.replace('T', ' ')}</div>
+              <div class="text-gray-400">${l.purpose} (${l.user_email})</div>
+            </div>
+            ${canDelete ? `<button onclick="handleCancel('${l.id}')" class="text-red-600 border border-red-300 rounded px-2 py-0.5">削除</button>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function handleCancel(bookingId) {
+      if (!confirm('予約を取り消しますか？')) return;
+      const { error } = await supabase.from('bookings').delete().eq('id', bookingId);
+      if (error) alert('削除エラー: ' + error.message);
+      else await loadData();
+    }
+
+    function updateCalendarEvents() {
+      AppState.calendar.removeAllEvents();
+      const events = AppState.logs.map(l => ({
+        id: l.id,
+        title: `${l.equip_name} (${l.user_name || l.user_email})`,
+        start: l.start_time,
+        end: l.end_time,
+        backgroundColor: l.user_email === AppState.currentUser.email ? '#047857' : '#4b5563'
+      }));
+      AppState.calendar.addEventSource(events);
+    }
+
+    function filterLogs(mode) {
+      AppState.filterMode = mode;
+      document.getElementById('btnFilterMy').className = mode === 'my' ? 'px-2 py-1 bg-gray-700 text-white rounded-l' : 'px-2 py-1 bg-gray-200 text-gray-700 rounded-l';
+      document.getElementById('btnFilterAll').className = mode === 'all' ? 'px-2 py-1 bg-gray-700 text-white rounded-r' : 'px-2 py-1 bg-gray-200 text-gray-700 rounded-r';
+      renderLogs();
     }
   </script>
 </body>
