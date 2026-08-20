@@ -142,6 +142,7 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_OQhRrKbi37Sn3STe7rS2yQ_3uMkMYQn';
     // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
+    // 変数名を supabaseClient に変更
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let AppState = { currentUser: null, tempEmail: '', equipments: [], logs: [], users: [], calendar: null, filterMode: 'my' };
@@ -157,7 +158,8 @@
 
       document.getElementById('btnLogin').disabled = true;
 
-      const { data: user, error } = await supabase.from('users').select('*').eq('email', email).maybeSingle();
+      // supabaseClient に変更
+      const { data: user, error } = await supabaseClient.from('users').select('*').eq('email', email).maybeSingle();
       document.getElementById('btnLogin').disabled = false;
 
       if (error) {
@@ -184,7 +186,8 @@
       document.getElementById('btnRegister').disabled = true;
 
       const newUserObj = { email: AppState.tempEmail, name: name, dept: dept, role: 'USER', trainings: '' };
-      const { data: newUser, error } = await supabase.from('users').insert([newUserObj]).select().single();
+      // supabaseClient に変更
+      const { data: newUser, error } = await supabaseClient.from('users').insert([newUserObj]).select().single();
 
       document.getElementById('btnRegister').disabled = false;
 
@@ -199,10 +202,11 @@
     }
 
     async function loadData() {
+      // supabaseClient に変更
       const [eqRes, logRes, userRes] = await Promise.all([
-        supabase.from('equipments').select('*'),
-        supabase.from('bookings').select('*'),
-        supabase.from('users').select('*')
+        supabaseClient.from('equipments').select('*'),
+        supabaseClient.from('bookings').select('*'),
+        supabaseClient.from('users').select('*')
       ]);
 
       AppState.equipments = eqRes.data || [];
@@ -277,7 +281,8 @@
       };
 
       document.getElementById('btnSubmit').disabled = true;
-      const { error } = await supabase.from('bookings').insert([bookingData]);
+      // supabaseClient に変更
+      const { error } = await supabaseClient.from('bookings').insert([bookingData]);
       document.getElementById('btnSubmit').disabled = false;
 
       if (error) {
@@ -314,7 +319,8 @@
 
     async function handleCancel(bookingId) {
       if (!confirm('予約を取り消しますか？')) return;
-      const { error } = await supabase.from('bookings').delete().eq('id', bookingId);
+      // supabaseClient に変更
+      const { error } = await supabaseClient.from('bookings').delete().eq('id', bookingId);
       if (error) alert('削除エラー: ' + error.message);
       else await loadData();
     }
