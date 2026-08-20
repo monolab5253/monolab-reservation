@@ -19,12 +19,13 @@
   <!-- ヘッダー -->
   <header class="bg-emerald-800 text-white px-6 py-3 flex justify-between items-center shadow-md">
     <h1 class="text-xl font-bold tracking-wide">研究室 備品予約システム</h1>
-    <div class="flex items-center space-x-4">
-      <div id="userInfo" class="text-sm"></div>
-      <button id="btnAdminMenu" onclick="openAdminModal()" class="hidden bg-amber-500 hover:bg-amber-600 text-white text-xs px-3 py-1.5 rounded font-bold transition">
-        ⚙️ 管理者メニュー
-      </button>
-    </div>
+<div class="flex items-center space-x-4">
+  <div id="userInfo" class="text-sm"></div>
+  <button id="btnLogout" onclick="handleLogout()" class="hidden bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-1 rounded">ログアウト</button>
+  <button id="btnAdminMenu" onclick="openAdminModal()" class="hidden bg-amber-500 hover:bg-amber-600 text-white text-xs px-3 py-1.5 rounded font-bold transition">
+    ⚙️ 管理者メニュー
+  </button>
+</div>
   </header>
 
   <!-- 1. メールアドレス入力モーダル -->
@@ -289,6 +290,68 @@
 
       renderUI();
     }
+
+    // ページ読み込み時に実行
+window.onload = async function() {
+  initCalendar();
+  await checkAutoLogin(); // 自動ログインチェックを追加
+};
+
+// 【新機能】自動ログイン判定
+async function checkAutoLogin() {
+  const savedEmail = localStorage.getItem('savedEmail');
+  if (!savedEmail) return; // 保存データがなければそのまま終了
+
+  // ログイン処理を自動実行
+  const { data: user } = await supabaseClient.from('users').select('*').eq('email', savedEmail).maybeSingle();
+  
+  if (user) {
+    AppState.currentUser = user;
+    document.getElementById('loginModal').classList.add('hidden');
+    document.getElementById('btnLogout').classList.remove('hidden'); // ログアウトボタン表示
+    await loadData();
+  } else {
+    // ユーザーが削除されていたら保存データを消す
+    localStorage.removeItem('savedEmail');
+  }
+}
+
+// ログイン処理の修正（メールアドレスを保存する処理を追加）
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  if (!email) return;
+
+  document.getElementById('btnLogin').disabled = true;
+
+  const { data: user, error } = await supabaseClient.from('users').select('*').eq('email', email).maybeSingle();
+  document.getElementById('btnLogin').disabled = false;
+
+  if (error) {
+    alert('接続エラー: ' + error.message);
+    return;
+  }
+
+  if (user) {
+    localStorage.setItem('savedEmail', email); // ★メールを保存
+    AppState.currentUser = user;
+    document.getElementById('loginModal').classList.add('hidden');
+    document.getElementById('btnLogout').classList.remove('hidden'); // ログアウトボタン表示
+    await loadData();
+  } else {
+    AppState.tempEmail = email;
+    document.getElementById('loginModal').classList.add('hidden');
+    document.getElementById('registerModal').classList.remove('hidden');
+  }
+}
+
+// 【新機能】ログアウト処理
+function handleLogout() {
+  if (confirm('ログアウトしますか？')) {
+    localStorage.removeItem('savedEmail');
+    location.reload(); // 画面をリロードしてログイン画面に戻す
+  }
+}
 
   function initCalendar() {
     const calendarEl = document.getElementById('calendar');
