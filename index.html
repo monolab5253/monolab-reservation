@@ -369,57 +369,83 @@
     AppState.calendar.addEventSource(events);
   }
 
-    // 予約申請
-    async function handleBooking(e) {
-      e.preventDefault();
-      const u = AppState.currentUser;
-      const equipId = document.getElementById('equipSelect').value;
-      const equip = AppState.equipments.find(e => e.id === equipId);
+// 予約申請（重複予約チェック機能付き）
+async function handleBooking(e) {
+  e.preventDefault();
+  const u = AppState.currentUser;
+  const equipId = document.getElementById('equipSelect').value;
+  const equip = AppState.equipments.find(e => e.id === equipId);
 
-      // 【講習未受講の判定】(USERS ロールのみチェック)
-      if (u.role === 'USERS' && equip.required_training && equip.required_training !== 'なし' && equip.required_training.trim() !== '') {
-        const userTrainings = u.trainings ? u.trainings.split(',').map(t => t.trim()) : [];
-        if (!userTrainings.includes(equip.required_training.trim())) {
-          alert(`【予約エラー】\nこの備品の利用には「${equip.required_training}」の受講が必要です。\n管理者に受講完了の権限付与を依頼してください。`);
-          return;
-        }
-      }
-
-      const logId = 'LOG_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-      const startTime = document.getElementById('startTime').value;
-      const endTime = document.getElementById('endTime').value;
-      const purpose = document.getElementById('purpose').value;
-
-      const bookingData = {
-        id: logId,
-        equip_id: equip.id,
-        equip_name: equip.name,
-        user_email: u.email,
-        start_time: startTime,
-        end_time: endTime,
-        purpose: purpose
-      };
-
-      document.getElementById('btnSubmit').disabled = true;
-      const { error } = await supabaseClient.from('logs').insert([bookingData]);
-      document.getElementById('btnSubmit').disabled = false;
-
-      if (error) {
-        alert('予約エラー: ' + error.message);
-      } else {
-        // Googleカレンダーへ追加リクエスト（GAS経由）
-        syncToGoogleCalendar('create', {
-          id: logId,
-          title: `${equip.name} (${u.name})`,
-          startTime: startTime,
-          endTime: endTime,
-          description: `利用目的: ${purpose}\n予約者: ${u.name} (${u.email})`
-        });
-
-        alert('予約が完了しました！');
-        await loadData();
-      }
+  // 1. 【講習未受講の判定】(USERS ロールのみチェック)
+  if (u.role === 'USERS' && equip.required_training && equip.required_training !== 'なし' && equip.required_training.trim() !== '') {
+    const userTrainings = u.trainings ? u.trainings.split(',').map(t => t.trim()) : [];
+    if (!userTrainings.includes(equip.required_training.trim())) {
+      alert(`【予約エラー】\nこの備品の利用には「${equip.required_training}」の受講が必要です。\n管理者に受講完了の権限付与を依頼してください。`);
+      return;
     }
+  }
+
+  const startTime = document.getElementById('startTime').value;
+  const endTime = document.getElementById('endTime').value;
+  const purpose = document.getElementById('purpose').value;
+
+  // 2. 日時の整合性チェック（終了時刻が開始時刻より前の場合）
+  if (new Date(startTime) >= new Date(endTime)) {
+    alert('【予約エラー】\n終了日時は開始日時よりも後の時間を指定してください。');
+    return;
+  }
+
+  // 3. 【重複予約のチェック】同じ備品で指定時間が重なっている予約がないか判定
+  const newStart = new Date(startTime).getTime();
+  const newEnd = new Date(endTime).getTime();
+
+  const isOverlapped = AppState.logs.some(log => {
+    if (log.equip_id !== equipId) return false; // 別の備品なら対象外
+
+    const logStart = new Date(log.start_time).getTime();
+    const logEnd = new Date(log.end_time).getTime();
+
+    // 時間が重なる条件: (既存開始 < 新規終了) AND (既存終了 > 新規開始)
+    return logStart < newEnd && logEnd > newStart;
+  });
+
+  if (isOverlapped) {
+    alert(`【予約重複エラー】\n指定された時間帯には、既に「${equip.name}」の予約が入っています。\n時間を変更してやり直してください。`);
+    return;
+  }
+
+  // 重複がない場合は保存処理を進める
+  const logId = 'LOG_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+  const bookingData = {
+    id: logId,
+    equip_id: equip.id,
+    equip_name: equip.name,
+    user_email: u.email,
+    start_time: startTime,
+    end_time: endTime,
+    purpose: purpose
+  };
+
+  document.getElementById('btnSubmit').disabled = true;
+  const { error } = await supabaseClient.from('logs').insert([bookingData]);
+  document.getElementById('btnSubmit').disabled = false;
+
+  if (error) {
+    alert('予約エラー: ' + error.message);
+  } else {
+    // Googleカレンダーへ追加リクエスト（GAS経由）
+    syncToGoogleCalendar('create', {
+      id: logId,
+      title: `${equip.name} (${u.name})`,
+      startTime: startTime,
+      endTime: endTime,
+      description: `利用目的: ${purpose}\n予約者: ${u.name} (${u.email})`
+    });
+
+    alert('予約が完了しました！');
+    await loadData();
+  }
+}
 // 1. 予約一覧（テキスト表示）の修正
 function renderLogs() {
   const logList = document.getElementById('logList');
