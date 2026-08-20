@@ -142,7 +142,7 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_OQhRrKbi37Sn3STe7rS2yQ_3uMkMYQn';
     // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let AppState = { currentUser: null, tempEmail: '', equipments: [], logs: [], users: [], calendar: null, filterMode: 'my' };
 
