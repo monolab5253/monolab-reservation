@@ -370,6 +370,7 @@
   }
 
 // 予約申請（重複予約チェック機能付き）
+// 予約申請（重複予約チェック機能付き・修正版）
 async function handleBooking(e) {
   e.preventDefault();
   const u = AppState.currentUser;
@@ -389,28 +390,32 @@ async function handleBooking(e) {
   const endTime = document.getElementById('endTime').value;
   const purpose = document.getElementById('purpose').value;
 
-  // 2. 日時の整合性チェック（終了時刻が開始時刻より前の場合）
-  if (new Date(startTime) >= new Date(endTime)) {
+  // 2. 日時の整合性チェック
+  const newStart = new Date(startTime).getTime();
+  const newEnd = new Date(endTime).getTime();
+
+  if (isNaN(newStart) || isNaN(newEnd) || newStart >= newEnd) {
     alert('【予約エラー】\n終了日時は開始日時よりも後の時間を指定してください。');
     return;
   }
 
-  // 3. 【重複予約のチェック】同じ備品で指定時間が重なっている予約がないか判定
-  const newStart = new Date(startTime).getTime();
-  const newEnd = new Date(endTime).getTime();
-
+  // 3. 【重複予約の厳密チェック】日時フォーマットを統一して時間重複を判定
   const isOverlapped = AppState.logs.some(log => {
     if (log.equip_id !== equipId) return false; // 別の備品なら対象外
 
-    const logStart = new Date(log.start_time).getTime();
-    const logEnd = new Date(log.end_time).getTime();
+    // DBからの日時文字列（T, Z, 空白などを取り除いて規格統一）
+    const cleanLogStart = log.start_time.replace(' ', 'T').split('.')[0].replace('Z', '').split('+')[0];
+    const cleanLogEnd = log.end_time.replace(' ', 'T').split('.')[0].replace('Z', '').split('+')[0];
 
-    // 時間が重なる条件: (既存開始 < 新規終了) AND (既存終了 > 新規開始)
+    const logStart = new Date(cleanLogStart).getTime();
+    const logEnd = new Date(cleanLogEnd).getTime();
+
+    // 時間が一部でも重なっている場合: (既存開始 < 新規終了) AND (既存終了 > 新規開始)
     return logStart < newEnd && logEnd > newStart;
   });
 
   if (isOverlapped) {
-    alert(`【予約重複エラー】\n指定された時間帯には、既に「${equip.name}」の予約が入っています。\n時間を変更してやり直してください。`);
+    alert(`【予約重複エラー】\n指定された時間帯には、既に「${equip.name}」の予約が入っています。\n別の時間帯を選択してください。`);
     return;
   }
 
