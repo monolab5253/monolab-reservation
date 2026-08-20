@@ -290,20 +290,30 @@
       renderUI();
     }
 
-    function initCalendar() {
-      const calendarEl = document.getElementById('calendar');
-      AppState.calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek',
-        locale: 'ja',
-        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
-        slotMinTime: '08:00:00',
-        slotMaxTime: '20:00:00',
-        allDaySlot: false,
-        height: 'auto'
-      });
-      AppState.calendar.render();
-    }
-
+function initCalendar() {
+  const calendarEl = document.getElementById('calendar');
+  AppState.calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'timeGridWeek', // 初期表示を「週表示(時間軸あり)」に設定
+    locale: 'ja',
+    headerToolbar: { 
+      left: 'prev,next today', 
+      center: 'title', 
+      right: 'dayGridMonth,timeGridWeek,timeGridDay' 
+    },
+    // ボタンのテキストをわかりやすい日本語に変更
+    buttonText: {
+      today: '今日',
+      month: '月',
+      week: '週',
+      day: '日'
+    },
+    slotMinTime: '08:00:00',
+    slotMaxTime: '20:00:00',
+    allDaySlot: false,
+    height: 'auto'
+  });
+  AppState.calendar.render();
+}
     function renderUI() {
       const u = AppState.currentUser;
       document.getElementById('userInfo').innerText = `${u.name} (${u.dept}) / ${u.role}`;
