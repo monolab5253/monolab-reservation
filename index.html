@@ -19,7 +19,12 @@
   <!-- ヘッダー -->
   <header class="bg-emerald-800 text-white px-6 py-3 flex justify-between items-center shadow-md">
     <h1 class="text-xl font-bold tracking-wide">研究室 備品予約システム</h1>
-    <div id="userInfo" class="text-sm"></div>
+    <div class="flex items-center space-x-4">
+      <div id="userInfo" class="text-sm"></div>
+      <button id="btnAdminMenu" onclick="openAdminModal()" class="hidden bg-amber-500 hover:bg-amber-600 text-white text-xs px-3 py-1.5 rounded font-bold transition">
+        ⚙️ 管理者メニュー
+      </button>
+    </div>
   </header>
 
   <!-- 1. メールアドレス入力モーダル -->
@@ -37,7 +42,7 @@
     </div>
   </div>
 
-  <!-- 2. 初回登録モーダル（未登録アドレスの場合のみ表示） -->
+  <!-- 2. 初回登録モーダル（未登録アドレスの場合） -->
   <div id="registerModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
     <div class="bg-white p-6 rounded-lg shadow-xl w-96">
       <h2 class="text-lg font-bold mb-2 text-emerald-800">初期ユーザー登録</h2>
@@ -53,6 +58,68 @@
         </div>
         <button type="submit" id="btnRegister" class="w-full bg-emerald-700 text-white py-2 rounded hover:bg-emerald-800 font-semibold text-sm">登録して始める</button>
       </form>
+    </div>
+  </div>
+
+  <!-- 3. 管理者専用モーダル -->
+  <div id="adminModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+    <div class="bg-white p-6 rounded-lg shadow-xl w-[700px] max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b pb-2 mb-4">
+        <h2 class="text-lg font-bold text-amber-800">⚙️ 管理者ダッシュボード</h2>
+        <button onclick="closeAdminModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <!-- タブ切り替え -->
+      <div class="flex border-b mb-4 text-sm">
+        <button onclick="switchAdminTab('equip')" id="tabEquipBtn" class="px-4 py-2 border-b-2 border-amber-600 font-bold text-amber-800">備品管理</button>
+        <button onclick="switchAdminTab('users')" id="tabUsersBtn" class="px-4 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700">ユーザー・講習管理</button>
+      </div>
+
+      <!-- 備品管理パネル -->
+      <div id="adminEquipPanel">
+        <form onsubmit="handleSaveEquipment(event)" class="bg-gray-50 p-3 rounded mb-4 text-xs border">
+          <div class="font-bold mb-2 text-gray-700" id="equipFormTitle">➕ 備品の新規追加</div>
+          <input type="hidden" id="editEquipId">
+          <div class="grid grid-cols-2 gap-2 mb-2">
+            <div>
+              <label class="block mb-1">備品ID (例: EQ_02)</label>
+              <input type="text" id="eqId" required class="w-full border rounded p-1">
+            </div>
+            <div>
+              <label class="block mb-1">備品名</label>
+              <input type="text" id="eqName" required class="w-full border rounded p-1">
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-2 mb-2">
+            <div>
+              <label class="block mb-1">設置場所</label>
+              <input type="text" id="eqLocation" class="w-full border rounded p-1">
+            </div>
+            <div>
+              <label class="block mb-1">必要講習名 (なしの場合は空欄)</label>
+              <input type="text" id="eqTraining" class="w-full border rounded p-1">
+            </div>
+            <div>
+              <label class="block mb-1">ステータス</label>
+              <select id="eqStatus" class="w-full border rounded p-1">
+                <option value="利用可能">利用可能</option>
+                <option value="利用不可">利用不可</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex space-x-2">
+            <button type="submit" class="bg-amber-600 text-white px-3 py-1 rounded font-bold hover:bg-amber-700">保存</button>
+            <button type="button" onclick="resetEquipForm()" class="bg-gray-300 text-gray-700 px-3 py-1 rounded hover:bg-gray-400">キャンセル</button>
+          </div>
+        </form>
+
+        <div id="adminEquipList" class="space-y-2 text-xs"></div>
+      </div>
+
+      <!-- ユーザー・講習管理パネル -->
+      <div id="adminUsersPanel" class="hidden">
+        <div id="adminUsersList" class="space-y-3 text-xs"></div>
+      </div>
     </div>
   </div>
 
@@ -140,6 +207,9 @@
     // ▼▼▼ ご自身の Supabase 情報に書き換えてください ▼▼▼
     const SUPABASE_URL = 'https://venzrdwpkfmijiqocaee.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_OQhRrKbi37Sn3STe7rS2yQ_3uMkMYQn';
+    
+    // ▼▼▼ Googleカレンダー連携用 GAS Web App URL (作成後に貼ってください) ▼▼▼
+    const GAS_WEBAPP_URL = 'http://script.google.com/macros/s/AKfycbx6bvACX-MWe8NY5lPHXk5KZyre8U57jZwsEV9hP-KJ-F0vzlVbeL-S6YlponQFNWpmJw/exec';
     // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -150,6 +220,7 @@
       initCalendar();
     };
 
+    // ログイン処理
     async function handleLogin(e) {
       e.preventDefault();
       const email = document.getElementById('loginEmail').value.trim();
@@ -176,6 +247,7 @@
       }
     }
 
+    // 初回ユーザー登録処理
     async function handleRegister(e) {
       e.preventDefault();
       const name = document.getElementById('regName').value.trim();
@@ -205,6 +277,7 @@
       await loadData();
     }
 
+    // データ読み込み
     async function loadData() {
       const [eqRes, logRes, userRes] = await Promise.all([
         supabaseClient.from('equipments').select('*'),
@@ -237,6 +310,10 @@
       const u = AppState.currentUser;
       document.getElementById('userInfo').innerText = `${u.name} (${u.dept}) / ${u.role}`;
 
+      if (u.role === 'ADMIN') {
+        document.getElementById('btnAdminMenu').classList.remove('hidden');
+      }
+
       document.getElementById('statEquip').innerText = AppState.equipments.length;
       document.getElementById('statDisabled').innerText = AppState.equipments.filter(e => e.status !== '利用可能').length;
       document.getElementById('statBookings').innerText = AppState.logs.length;
@@ -248,6 +325,8 @@
 
       renderLogs();
       updateCalendarEvents();
+      renderAdminEquipList();
+      renderAdminUsersList();
     }
 
     function updateEquipInfo() {
@@ -259,31 +338,35 @@
       }
     }
 
+    // 予約申請
     async function handleBooking(e) {
       e.preventDefault();
       const u = AppState.currentUser;
       const equipId = document.getElementById('equipSelect').value;
       const equip = AppState.equipments.find(e => e.id === equipId);
 
-      if (u.role !== 'ADMIN' && equip.required_training && equip.required_training !== 'なし') {
-        const userTrainings = u.trainings ? u.trainings.split(',') : [];
-        if (!userTrainings.includes(equip.required_training)) {
-          alert(`【予約エラー】\nこの備品の利用には「${equip.required_training}」の受講が必要です。`);
+      // 【講習未受講の判定】(USERS ロールのみチェック)
+      if (u.role === 'USERS' && equip.required_training && equip.required_training !== 'なし' && equip.required_training.trim() !== '') {
+        const userTrainings = u.trainings ? u.trainings.split(',').map(t => t.trim()) : [];
+        if (!userTrainings.includes(equip.required_training.trim())) {
+          alert(`【予約エラー】\nこの備品の利用には「${equip.required_training}」の受講が必要です。\n管理者に受講完了の権限付与を依頼してください。`);
           return;
         }
       }
 
-      // logsテーブルのid用にランダムIDを生成
       const logId = 'LOG_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+      const startTime = document.getElementById('startTime').value;
+      const endTime = document.getElementById('endTime').value;
+      const purpose = document.getElementById('purpose').value;
 
       const bookingData = {
         id: logId,
         equip_id: equip.id,
         equip_name: equip.name,
         user_email: u.email,
-        start_time: document.getElementById('startTime').value,
-        end_time: document.getElementById('endTime').value,
-        purpose: document.getElementById('purpose').value
+        start_time: startTime,
+        end_time: endTime,
+        purpose: purpose
       };
 
       document.getElementById('btnSubmit').disabled = true;
@@ -293,6 +376,15 @@
       if (error) {
         alert('予約エラー: ' + error.message);
       } else {
+        // Googleカレンダーへ追加リクエスト（GAS経由）
+        syncToGoogleCalendar('create', {
+          id: logId,
+          title: `${equip.name} (${u.name})`,
+          startTime: startTime,
+          endTime: endTime,
+          description: `利用目的: ${purpose}\n予約者: ${u.name} (${u.email})`
+        });
+
         alert('予約が完了しました！');
         await loadData();
       }
@@ -319,17 +411,23 @@
               <div class="text-gray-500">${startTimeStr} ～ ${endTimeStr}</div>
               <div class="text-gray-400">${l.purpose || ''} (${l.user_email})</div>
             </div>
-            ${canDelete ? `<button onclick="handleCancel('${l.id}')" class="text-red-600 border border-red-300 rounded px-2 py-0.5">削除</button>` : ''}
+            ${canDelete ? `<button onclick="handleCancel('${l.id}')" class="text-red-600 border border-red-300 rounded px-2 py-0.5 hover:bg-red-50">削除</button>` : ''}
           </div>
         `;
       }).join('');
     }
 
+    // 予約取消
     async function handleCancel(logId) {
       if (!confirm('予約を取り消しますか？')) return;
       const { error } = await supabaseClient.from('logs').delete().eq('id', logId);
-      if (error) alert('削除エラー: ' + error.message);
-      else await loadData();
+      if (error) {
+        alert('削除エラー: ' + error.message);
+      } else {
+        // Googleカレンダーから削除リクエスト（GAS経由）
+        syncToGoogleCalendar('delete', { id: logId });
+        await loadData();
+      }
     }
 
     function updateCalendarEvents() {
@@ -354,6 +452,140 @@
       document.getElementById('btnFilterMy').className = mode === 'my' ? 'px-2 py-1 bg-gray-700 text-white rounded-l' : 'px-2 py-1 bg-gray-200 text-gray-700 rounded-l';
       document.getElementById('btnFilterAll').className = mode === 'all' ? 'px-2 py-1 bg-gray-700 text-white rounded-r' : 'px-2 py-1 bg-gray-200 text-gray-700 rounded-r';
       renderLogs();
+    }
+
+    // --- 管理者専用機能 ---
+    function openAdminModal() { document.getElementById('adminModal').classList.remove('hidden'); }
+    function closeAdminModal() { document.getElementById('adminModal').classList.add('hidden'); }
+
+    function switchAdminTab(tab) {
+      if (tab === 'equip') {
+        document.getElementById('adminEquipPanel').classList.remove('hidden');
+        document.getElementById('adminUsersPanel').classList.add('hidden');
+        document.getElementById('tabEquipBtn').className = "px-4 py-2 border-b-2 border-amber-600 font-bold text-amber-800";
+        document.getElementById('tabUsersBtn').className = "px-4 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700";
+      } else {
+        document.getElementById('adminEquipPanel').classList.add('hidden');
+        document.getElementById('adminUsersPanel').classList.remove('hidden');
+        document.getElementById('tabEquipBtn').className = "px-4 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700";
+        document.getElementById('tabUsersBtn').className = "px-4 py-2 border-b-2 border-amber-600 font-bold text-amber-800";
+      }
+    }
+
+    function renderAdminEquipList() {
+      const container = document.getElementById('adminEquipList');
+      container.innerHTML = AppState.equipments.map(e => `
+        <div class="border rounded p-2 flex justify-between items-center bg-white">
+          <div>
+            <span class="font-bold text-gray-800">[${e.id}] ${e.name}</span>
+            <span class="text-gray-500 ml-2">(${e.location || '場所未設定'})</span>
+            <div class="text-gray-400">必要講習: ${e.required_training || 'なし'} / 状態: ${e.status}</div>
+          </div>
+          <button onclick="editEquipment('${e.id}')" class="text-blue-600 border border-blue-300 rounded px-2 py-0.5">編集</button>
+        </div>
+      `).join('');
+    }
+
+    function editEquipment(id) {
+      const eq = AppState.equipments.find(e => e.id === id);
+      if (!eq) return;
+      document.getElementById('editEquipId').value = eq.id;
+      document.getElementById('eqId').value = eq.id;
+      document.getElementById('eqId').disabled = true;
+      document.getElementById('eqName').value = eq.name;
+      document.getElementById('eqLocation').value = eq.location || '';
+      document.getElementById('eqTraining').value = eq.required_training || '';
+      document.getElementById('eqStatus').value = eq.status || '利用可能';
+      document.getElementById('equipFormTitle').innerText = '✏️ 備品の編集';
+    }
+
+    function resetEquipForm() {
+      document.getElementById('editEquipId').value = '';
+      document.getElementById('eqId').value = '';
+      document.getElementById('eqId').disabled = false;
+      document.getElementById('eqName').value = '';
+      document.getElementById('eqLocation').value = '';
+      document.getElementById('eqTraining').value = '';
+      document.getElementById('eqStatus').value = '利用可能';
+      document.getElementById('equipFormTitle').innerText = '➕ 備品の新規追加';
+    }
+
+    async function handleSaveEquipment(e) {
+      e.preventDefault();
+      const isEdit = !!document.getElementById('editEquipId').value;
+      const eqData = {
+        id: document.getElementById('eqId').value.trim(),
+        name: document.getElementById('eqName').value.trim(),
+        location: document.getElementById('eqLocation').value.trim(),
+        required_training: document.getElementById('eqTraining').value.trim() || 'なし',
+        status: document.getElementById('eqStatus').value
+      };
+
+      const { error } = isEdit 
+        ? await supabaseClient.from('equipments').update(eqData).eq('id', eqData.id)
+        : await supabaseClient.from('equipments').insert([eqData]);
+
+      if (error) {
+        alert('保存エラー: ' + error.message);
+      } else {
+        alert('備品情報を保存しました');
+        resetEquipForm();
+        await loadData();
+      }
+    }
+
+    function renderAdminUsersList() {
+      const container = document.getElementById('adminUsersList');
+      container.innerHTML = AppState.users.map(u => `
+        <div class="border rounded p-3 bg-white space-y-2">
+          <div class="flex justify-between items-center border-b pb-1">
+            <span class="font-bold text-gray-800">${u.name} (${u.dept || '所属なし'})</span>
+            <span class="text-gray-500">${u.email}</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 items-center">
+            <div>
+              <label class="block font-semibold">ロール:</label>
+              <select id="role_${u.email.replace(/[@.]/g, '_')}" onchange="updateUserRole('${u.email}', this.value)" class="border rounded px-2 py-1 text-xs">
+                <option value="USERS" ${u.role === 'USERS' ? 'selected' : ''}>USERS</option>
+                <option value="ADMIN" ${u.role === 'ADMIN' ? 'selected' : ''}>ADMIN</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold">講習済み一覧 (カンマ区切り):</label>
+              <div class="flex space-x-1">
+                <input type="text" id="train_${u.email.replace(/[@.]/g, '_')}" value="${u.trainings || ''}" placeholder="例: 3Dプリンター利用者講習" class="border rounded p-1 w-full text-xs">
+                <button onclick="updateUserTrainings('${u.email}')" class="bg-emerald-700 text-white px-2 py-1 rounded font-bold hover:bg-emerald-800">更新</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function updateUserRole(email, newRole) {
+      const { error } = await supabaseClient.from('users').update({ role: newRole }).eq('email', email);
+      if (error) alert('ロール更新エラー: ' + error.message);
+      else await loadData();
+    }
+
+    async function updateUserTrainings(email) {
+      const inputId = `train_${email.replace(/[@.]/g, '_')}`;
+      const newTrainings = document.getElementById(inputId).value.trim();
+      const { error } = await supabaseClient.from('users').update({ trainings: newTrainings }).eq('email', email);
+      if (error) alert('講習更新エラー: ' + error.message);
+      else { alert('講習権限を更新しました'); await loadData(); }
+    }
+
+    // --- Googleカレンダー同期通信 (GAS連携) ---
+    function syncToGoogleCalendar(action, data) {
+      if (!GAS_WEBAPP_URL || GAS_WEBAPP_URL === 'YOUR_GAS_WEBAPP_URL') return;
+
+      fetch(GAS_WEBAPP_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: action, data: data })
+      }).catch(err => console.error('GAS Sync Error:', err));
     }
   </script>
 </body>
