@@ -420,33 +420,57 @@
         await loadData();
       }
     }
+// 1. 予約一覧（テキスト表示）の修正
+function renderLogs() {
+  const logList = document.getElementById('logList');
+  const filtered = AppState.logs.filter(l => AppState.filterMode === 'my' ? l.user_email === AppState.currentUser.email : true);
 
-    function renderLogs() {
-      const logList = document.getElementById('logList');
-      const filtered = AppState.logs.filter(l => AppState.filterMode === 'my' ? l.user_email === AppState.currentUser.email : true);
+  if (filtered.length === 0) {
+    logList.innerHTML = `<div class="text-center text-gray-400 py-4">予約はありません</div>`;
+    return;
+  }
 
-      if (filtered.length === 0) {
-        logList.innerHTML = `<div class="text-center text-gray-400 py-4">予約はありません</div>`;
-        return;
-      }
+  logList.innerHTML = filtered.map(l => {
+    const canDelete = l.user_email === AppState.currentUser.email || AppState.currentUser.role === 'ADMIN';
 
-      logList.innerHTML = filtered.map(l => {
-        const canDelete = l.user_email === AppState.currentUser.email || AppState.currentUser.role === 'ADMIN';
-        const startTimeStr = l.start_time ? l.start_time.replace('T', ' ').substring(0, 16) : '';
-        const endTimeStr = l.end_time ? l.end_time.replace('T', ' ').substring(0, 16) : '';
+    // TやZ、+09:00などの余計な文字列を取り除いて日本時間文字列として扱う
+    const cleanStart = l.start_time ? l.start_time.split('.')[0].replace('T', ' ').replace('Z', '').split('+')[0] : '';
+    const cleanEnd = l.end_time ? l.end_time.split('.')[0].replace('T', ' ').replace('Z', '').split('+')[0] : '';
 
-        return `
-          <div class="border rounded p-2 bg-gray-50 flex justify-between items-center">
-            <div>
-              <div class="font-bold text-gray-800">${l.equip_name || '備品'}</div>
-              <div class="text-gray-500">${startTimeStr} ～ ${endTimeStr}</div>
-              <div class="text-gray-400">${l.purpose || ''} (${l.user_email})</div>
-            </div>
-            ${canDelete ? `<button onclick="handleCancel('${l.id}')" class="text-red-600 border border-red-300 rounded px-2 py-0.5 hover:bg-red-50">削除</button>` : ''}
-          </div>
-        `;
-      }).join('');
-    }
+    return `
+      <div class="border rounded p-2 bg-gray-50 flex justify-between items-center">
+        <div>
+          <div class="font-bold text-gray-800">${l.equip_name || '備品'}</div>
+          <div class="text-gray-500">${cleanStart.substring(0, 16)} ～ ${cleanEnd.substring(0, 16)}</div>
+          <div class="text-gray-400">${l.purpose || ''} (${l.user_email})</div>
+        </div>
+        ${canDelete ? `<button onclick="handleCancel('${l.id}')" class="text-red-600 border border-red-300 rounded px-2 py-0.5 hover:bg-red-50">削除</button>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// 2. カレンダー描画（9時間ズレ完全防止）の修正
+function updateCalendarEvents() {
+  AppState.calendar.removeAllEvents();
+  const events = AppState.logs.map(l => {
+    const userObj = AppState.users.find(u => u.email === l.user_email);
+    const userName = userObj ? userObj.name : l.user_email;
+
+    // 時間文字列から余計なタイムゾーン情報を消し、純粋な 'YYYY-MM-DDTHH:mm' 形式でFullCalendarに渡す
+    const rawStart = l.start_time ? l.start_time.split('.')[0].replace('Z', '').split('+')[0] : '';
+    const rawEnd = l.end_time ? l.end_time.split('.')[0].replace('Z', '').split('+')[0] : '';
+
+    return {
+      id: l.id,
+      title: `${l.equip_name || '備品'} (${userName})`,
+      start: rawStart,
+      end: rawEnd,
+      backgroundColor: l.user_email === AppState.currentUser.email ? '#047857' : '#4b5563'
+    };
+  });
+  AppState.calendar.addEventSource(events);
+}
 
     // 予約取消
     async function handleCancel(logId) {
@@ -459,23 +483,6 @@
         syncToGoogleCalendar('delete', { id: logId });
         await loadData();
       }
-    }
-
-    function updateCalendarEvents() {
-      AppState.calendar.removeAllEvents();
-      const events = AppState.logs.map(l => {
-        const userObj = AppState.users.find(u => u.email === l.user_email);
-        const userName = userObj ? userObj.name : l.user_email;
-
-        return {
-          id: l.id,
-          title: `${l.equip_name || '備品'} (${userName})`,
-          start: l.start_time,
-          end: l.end_time,
-          backgroundColor: l.user_email === AppState.currentUser.email ? '#047857' : '#4b5563'
-        };
-      });
-      AppState.calendar.addEventSource(events);
     }
 
     function filterLogs(mode) {
