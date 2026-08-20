@@ -290,61 +290,84 @@
       renderUI();
     }
 
-function initCalendar() {
-  const calendarEl = document.getElementById('calendar');
-  AppState.calendar = new FullCalendar.Calendar(calendarEl, {
-    initialView: 'timeGridWeek', // 初期表示を「週表示(時間軸あり)」に設定
-    locale: 'ja',
-    headerToolbar: { 
-      left: 'prev,next today', 
-      center: 'title', 
-      right: 'dayGridMonth,timeGridWeek,timeGridDay' 
-    },
-    // ボタンのテキストをわかりやすい日本語に変更
-    buttonText: {
-      today: '今日',
-      month: '月',
-      week: '週',
-      day: '日'
-    },
-    slotMinTime: '08:00:00',
-    slotMaxTime: '20:00:00',
-    allDaySlot: false,
-    height: 'auto'
-  });
-  AppState.calendar.render();
-}
-    function renderUI() {
-      const u = AppState.currentUser;
-      document.getElementById('userInfo').innerText = `${u.name} (${u.dept}) / ${u.role}`;
-
-      if (u.role === 'ADMIN') {
-        document.getElementById('btnAdminMenu').classList.remove('hidden');
-      }
-
-      document.getElementById('statEquip').innerText = AppState.equipments.length;
-      document.getElementById('statDisabled').innerText = AppState.equipments.filter(e => e.status !== '利用可能').length;
-      document.getElementById('statBookings').innerText = AppState.logs.length;
-      document.getElementById('statUsers').innerText = AppState.users.length;
-
-      const equipSelect = document.getElementById('equipSelect');
-      equipSelect.innerHTML = AppState.equipments.map(e => `<option value="${e.id}">${e.name} (${e.location || '未設定'})</option>`).join('');
-      updateEquipInfo();
-
-      renderLogs();
-      updateCalendarEvents();
-      renderAdminEquipList();
-      renderAdminUsersList();
+  function initCalendar() {
+    const calendarEl = document.getElementById('calendar');
+    AppState.calendar = new FullCalendar.Calendar(calendarEl, {
+      initialView: 'timeGridWeek',
+      locale: 'ja',
+      timeZone: 'local', // ★ここを追加（時間の自動換算を防止）
+      headerToolbar: { 
+        left: 'prev,next today', 
+        center: 'title', 
+        right: 'dayGridMonth,timeGridWeek,timeGridDay' 
+      },
+      buttonText: {
+        today: '今日',
+        month: '月',
+        week: '週',
+        day: '日'
+      },
+      slotMinTime: '08:00:00',
+      slotMaxTime: '20:00:00',
+      allDaySlot: false,
+      height: 'auto'
+    });
+    AppState.calendar.render();
+  }
+  
+  function renderUI() {
+    const u = AppState.currentUser;
+    document.getElementById('userInfo').innerText = `${u.name} (${u.dept}) / ${u.role}`;
+  
+    if (u.role === 'ADMIN') {
+      document.getElementById('btnAdminMenu').classList.remove('hidden');
     }
-
-    function updateEquipInfo() {
-      const selectedId = document.getElementById('equipSelect').value;
-      const equip = AppState.equipments.find(e => e.id === selectedId);
-      if (equip) {
-        document.getElementById('infoLocation').innerText = equip.location || '未設定';
-        document.getElementById('infoTraining').innerText = equip.required_training || 'なし';
-      }
+  
+    document.getElementById('statEquip').innerText = AppState.equipments.length;
+    document.getElementById('statDisabled').innerText = AppState.equipments.filter(e => e.status !== '利用可能').length;
+    document.getElementById('statBookings').innerText = AppState.logs.length;
+    document.getElementById('statUsers').innerText = AppState.users.length;
+  
+    const equipSelect = document.getElementById('equipSelect');
+    equipSelect.innerHTML = AppState.equipments.map(e => `<option value="${e.id}">${e.name} (${e.location || '未設定'})</option>`).join('');
+    updateEquipInfo();
+  
+    renderLogs();
+    updateCalendarEvents();
+    renderAdminEquipList();
+    renderAdminUsersList();
+  }
+  
+  function updateEquipInfo() {
+    const selectedId = document.getElementById('equipSelect').value;
+    const equip = AppState.equipments.find(e => e.id === selectedId);
+    if (equip) {
+      document.getElementById('infoLocation').innerText = equip.location || '未設定';
+      document.getElementById('infoTraining').innerText = equip.required_training || 'なし';
     }
+  }
+  
+  // ★カレンダー描画処理（時間のずれをなくすために必要です）
+  function updateCalendarEvents() {
+    AppState.calendar.removeAllEvents();
+    const events = AppState.logs.map(l => {
+      const userObj = AppState.users.find(u => u.email === l.user_email);
+      const userName = userObj ? userObj.name : l.user_email;
+  
+      // Supabaseから取得した日時の不要な時差表記を除外
+      const startStr = l.start_time ? l.start_time.split('+')[0].replace('Z', '') : '';
+      const endStr = l.end_time ? l.end_time.split('+')[0].replace('Z', '') : '';
+  
+      return {
+        id: l.id,
+        title: `${l.equip_name || '備品'} (${userName})`,
+        start: startStr,
+        end: endStr,
+        backgroundColor: l.user_email === AppState.currentUser.email ? '#047857' : '#4b5563'
+      };
+    });
+    AppState.calendar.addEventSource(events);
+  }
 
     // 予約申請
     async function handleBooking(e) {
