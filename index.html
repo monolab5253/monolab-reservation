@@ -49,7 +49,7 @@
         </div>
         <div class="mb-4">
           <label class="block text-xs font-semibold mb-1">所属</label>
-          <input type="text" id="regDept" required class="w-full border rounded px-3 py-2 text-sm focus:outline-emerald-600" placeholder="例: 情報工学研究室">
+          <input type="text" id="regDept" required class="w-full border rounded px-3 py-2 text-sm focus:outline-emerald-600" placeholder="例: モノづくりラボ">
         </div>
         <button type="submit" id="btnRegister" class="w-full bg-emerald-700 text-white py-2 rounded hover:bg-emerald-800 font-semibold text-sm">登録して始める</button>
       </form>
@@ -140,10 +140,8 @@
     // ▼▼▼ ご自身の Supabase 情報に書き換えてください ▼▼▼
     const SUPABASE_URL = 'https://venzrdwpkfmijiqocaee.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_OQhRrKbi37Sn3STe7rS2yQ_3uMkMYQn';
-    
     // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
-    // 変数名を supabaseClient に変更
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let AppState = { currentUser: null, tempEmail: '', equipments: [], logs: [], users: [], calendar: null, filterMode: 'my' };
@@ -159,7 +157,6 @@
 
       document.getElementById('btnLogin').disabled = true;
 
-      // supabaseClient に変更
       const { data: user, error } = await supabaseClient.from('users').select('*').eq('email', email).maybeSingle();
       document.getElementById('btnLogin').disabled = false;
 
@@ -186,8 +183,14 @@
 
       document.getElementById('btnRegister').disabled = true;
 
-      const newUserObj = { email: AppState.tempEmail, name: name, dept: dept, role: 'USER', trainings: '' };
-      // supabaseClient に変更
+      const newUserObj = { 
+        email: AppState.tempEmail, 
+        name: name, 
+        dept: dept, 
+        role: 'USERS', 
+        trainings: '' 
+      };
+
       const { data: newUser, error } = await supabaseClient.from('users').insert([newUserObj]).select().single();
 
       document.getElementById('btnRegister').disabled = false;
@@ -203,10 +206,9 @@
     }
 
     async function loadData() {
-      // supabaseClient に変更
       const [eqRes, logRes, userRes] = await Promise.all([
         supabaseClient.from('equipments').select('*'),
-        supabaseClient.from('bookings').select('*'),
+        supabaseClient.from('logs').select('*'),
         supabaseClient.from('users').select('*')
       ]);
 
@@ -236,12 +238,12 @@
       document.getElementById('userInfo').innerText = `${u.name} (${u.dept}) / ${u.role}`;
 
       document.getElementById('statEquip').innerText = AppState.equipments.length;
-      document.getElementById('statDisabled').innerText = AppState.equipments.filter(e => e.status === '利用不可').length;
+      document.getElementById('statDisabled').innerText = AppState.equipments.filter(e => e.status !== '利用可能').length;
       document.getElementById('statBookings').innerText = AppState.logs.length;
       document.getElementById('statUsers').innerText = AppState.users.length;
 
       const equipSelect = document.getElementById('equipSelect');
-      equipSelect.innerHTML = AppState.equipments.map(e => `<option value="${e.id}">${e.name} (${e.location})</option>`).join('');
+      equipSelect.innerHTML = AppState.equipments.map(e => `<option value="${e.id}">${e.name} (${e.location || '未設定'})</option>`).join('');
       updateEquipInfo();
 
       renderLogs();
@@ -271,19 +273,21 @@
         }
       }
 
+      // logsテーブルのid用にランダムIDを生成
+      const logId = 'LOG_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
       const bookingData = {
+        id: logId,
         equip_id: equip.id,
         equip_name: equip.name,
         user_email: u.email,
-        user_name: u.name,
         start_time: document.getElementById('startTime').value,
         end_time: document.getElementById('endTime').value,
         purpose: document.getElementById('purpose').value
       };
 
       document.getElementById('btnSubmit').disabled = true;
-      // supabaseClient に変更
-      const { error } = await supabaseClient.from('bookings').insert([bookingData]);
+      const { error } = await supabaseClient.from('logs').insert([bookingData]);
       document.getElementById('btnSubmit').disabled = false;
 
       if (error) {
@@ -305,12 +309,15 @@
 
       logList.innerHTML = filtered.map(l => {
         const canDelete = l.user_email === AppState.currentUser.email || AppState.currentUser.role === 'ADMIN';
+        const startTimeStr = l.start_time ? l.start_time.replace('T', ' ').substring(0, 16) : '';
+        const endTimeStr = l.end_time ? l.end_time.replace('T', ' ').substring(0, 16) : '';
+
         return `
           <div class="border rounded p-2 bg-gray-50 flex justify-between items-center">
             <div>
-              <div class="font-bold text-gray-800">${l.equip_name}</div>
-              <div class="text-gray-500">${l.start_time.replace('T', ' ')} ～ ${l.end_time.replace('T', ' ')}</div>
-              <div class="text-gray-400">${l.purpose} (${l.user_email})</div>
+              <div class="font-bold text-gray-800">${l.equip_name || '備品'}</div>
+              <div class="text-gray-500">${startTimeStr} ～ ${endTimeStr}</div>
+              <div class="text-gray-400">${l.purpose || ''} (${l.user_email})</div>
             </div>
             ${canDelete ? `<button onclick="handleCancel('${l.id}')" class="text-red-600 border border-red-300 rounded px-2 py-0.5">削除</button>` : ''}
           </div>
@@ -318,23 +325,27 @@
       }).join('');
     }
 
-    async function handleCancel(bookingId) {
+    async function handleCancel(logId) {
       if (!confirm('予約を取り消しますか？')) return;
-      // supabaseClient に変更
-      const { error } = await supabaseClient.from('bookings').delete().eq('id', bookingId);
+      const { error } = await supabaseClient.from('logs').delete().eq('id', logId);
       if (error) alert('削除エラー: ' + error.message);
       else await loadData();
     }
 
     function updateCalendarEvents() {
       AppState.calendar.removeAllEvents();
-      const events = AppState.logs.map(l => ({
-        id: l.id,
-        title: `${l.equip_name} (${l.user_name || l.user_email})`,
-        start: l.start_time,
-        end: l.end_time,
-        backgroundColor: l.user_email === AppState.currentUser.email ? '#047857' : '#4b5563'
-      }));
+      const events = AppState.logs.map(l => {
+        const userObj = AppState.users.find(u => u.email === l.user_email);
+        const userName = userObj ? userObj.name : l.user_email;
+
+        return {
+          id: l.id,
+          title: `${l.equip_name || '備品'} (${userName})`,
+          start: l.start_time,
+          end: l.end_time,
+          backgroundColor: l.user_email === AppState.currentUser.email ? '#047857' : '#4b5563'
+        };
+      });
       AppState.calendar.addEventSource(events);
     }
 
