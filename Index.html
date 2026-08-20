@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>研究室 備品予約システム</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FullCalendar CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <style>
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6; }
+    .fc-header-toolbar { font-size: 0.85rem; }
+  </style>
+</head>
+<body class="text-gray-800">
+
+  <!-- ヘッダー -->
+  <header class="bg-emerald-800 text-white px-6 py-3 flex justify-between items-center shadow-md">
+    <h1 class="text-xl font-bold tracking-wide">研究室 備品予約システム</h1>
+    <div id="userInfo" class="text-sm"></div>
+  </header>
+
+  <!-- 初回サインインダイアログ（未登録ユーザー用） -->
+  <div id="registerModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+    <div class="bg-white p-6 rounded-lg shadow-xl w-96">
+      <h2 class="text-lg font-bold mb-4 text-emerald-800">初期サインイン登録</h2>
+      <p class="text-sm text-gray-600 mb-4">アカウントが見つかりません。氏名と所属を入力してください。</p>
+      <form id="registerForm" onsubmit="handleRegister(event)">
+        <div class="mb-3">
+          <label class="block text-xs font-semibold mb-1">氏名</label>
+          <input type="text" id="regName" required class="w-full border rounded px-3 py-2 text-sm focus:outline-emerald-600">
+        </div>
+        <div class="mb-4">
+          <label class="block text-xs font-semibold mb-1">所属</label>
+          <input type="text" id="regDept" placeholder="例: ○○研究室" required class="w-full border rounded px-3 py-2 text-sm focus:outline-emerald-600">
+        </div>
+        <button type="submit" class="w-full bg-emerald-700 text-white py-2 rounded hover:bg-emerald-800 font-semibold text-sm">登録して始める</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- メインコンテンツ -->
+  <main class="max-w-7xl mx-auto p-4">
+    <!-- ダッシュボードカード -->
+    <div class="grid grid-cols-4 gap-4 mb-4">
+      <div class="bg-white p-4 rounded shadow border-t-4 border-emerald-600 text-center">
+        <div class="text-2xl font-bold" id="statEquip">0</div>
+        <div class="text-xs text-gray-500">備品総数</div>
+      </div>
+      <div class="bg-white p-4 rounded shadow border-t-4 border-red-500 text-center">
+        <div class="text-2xl font-bold text-red-600" id="statDisabled">0</div>
+        <div class="text-xs text-gray-500">利用不可の備品</div>
+      </div>
+      <div class="bg-white p-4 rounded shadow border-t-4 border-blue-500 text-center">
+        <div class="text-2xl font-bold text-blue-600" id="statBookings">0</div>
+        <div class="text-xs text-gray-500">有効予約数</div>
+      </div>
+      <div class="bg-white p-4 rounded shadow border-t-4 border-amber-500 text-center">
+        <div class="text-2xl font-bold" id="statUsers">0</div>
+        <div class="text-xs text-gray-500">登録ユーザー数</div>
+      </div>
+    </div>
+
+    <!-- 管理者エリア (ADMINのみ表示) -->
+    <div id="adminPanel" class="hidden mb-6 bg-amber-50 border border-amber-200 p-4 rounded shadow">
+      <h2 class="text-md font-bold text-amber-900 mb-2">管理者メニュー</h2>
+      <div class="flex gap-2">
+        <button onclick="showAdminUserModal()" class="bg-amber-700 text-white px-3 py-1.5 text-xs rounded hover:bg-amber-800">ユーザー権限・研修管理</button>
+        <button onclick="showAdminEquipModal()" class="bg-amber-700 text-white px-3 py-1.5 text-xs rounded hover:bg-amber-800">備品追加・編集</button>
+      </div>
+    </div>
+
+    <!-- 2カラム構成 -->
+    <div class="grid grid-cols-12 gap-6">
+      
+      <!-- 左カラム: 予約フォーム & 一覧 -->
+      <div class="col-span-4 space-y-6">
+        <!-- 新規予約パネル -->
+        <div class="bg-white p-4 rounded shadow">
+          <h2 class="text-sm font-bold border-b pb-2 mb-3 text-gray-700 flex items-center">
+            <span class="mr-1">📅</span> 新規予約
+          </h2>
+          <form id="bookingForm" onsubmit="handleBooking(event)">
+            <div class="mb-3">
+              <label class="block text-xs font-semibold mb-1">備品</label>
+              <select id="equipSelect" onchange="updateEquipInfo()" class="w-full border rounded px-2 py-1.5 text-sm">
+              </select>
+              <div id="equipDetail" class="mt-2 text-xs bg-gray-50 p-2 rounded text-gray-600 space-y-0.5">
+                <div>設置場所: <span id="infoLocation">-</span></div>
+                <div>必要講習: <span id="infoTraining" class="font-semibold text-emerald-700">-</span></div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <div>
+                <label class="block text-xs font-semibold mb-1">開始日時</label>
+                <input type="datetime-local" id="startTime" required class="w-full border rounded px-2 py-1 text-xs">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold mb-1">終了日時</label>
+                <input type="datetime-local" id="endTime" required class="w-full border rounded px-2 py-1 text-xs">
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label class="block text-xs font-semibold mb-1">利用目的</label>
+              <textarea id="purpose" rows="2" placeholder="例）○○実験のため" required class="w-full border rounded px-2 py-1 text-xs"></textarea>
+            </div>
+
+            <button type="submit" id="btnSubmit" class="w-full bg-emerald-700 text-white py-2 rounded hover:bg-emerald-800 font-semibold text-xs transition">
+              ✓ 予約する
+            </button>
+          </form>
+        </div>
+
+        <!-- 予約一覧 -->
+        <div class="bg-white p-4 rounded shadow">
+          <div class="flex justify-between items-center border-b pb-2 mb-3">
+            <h2 class="text-sm font-bold text-gray-700">📑 予約一覧</h2>
+            <div class="inline-flex rounded-md shadow-sm text-xs">
+              <button onclick="filterLogs('my')" id="btnFilterMy" class="px-2 py-1 bg-gray-700 text-white rounded-l">自分の予約</button>
+              <button onclick="filterLogs('all')" id="btnFilterAll" class="px-2 py-1 bg-gray-200 text-gray-700 rounded-r">すべて</button>
+            </div>
+          </div>
+          <div id="logList" class="space-y-2 max-h-80 overflow-y-auto text-xs">
+            <!-- JSで動的追加 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 右カラム: FullCalendar カレンダー表示 -->
+      <div class="col-span-8 bg-white p-4 rounded shadow">
+        <div id="calendar"></div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    let AppState = { currentUser: null, equipments: [], logs: [], users: [], calendar: null, filterMode: 'my' };
+
+    // 初期化処理
+    window.onload = function() {
+      initCalendar();
+      loadData();
+    };
+
+    function loadData() {
+      google.script.run.withSuccessHandler(data => {
+        AppState.currentUser = data.currentUser;
+        AppState.equipments = data.equipments;
+        AppState.logs = data.logs;
+        AppState.users = data.users;
+
+        // サインイン未登録ダイアログチェック
+        if (!AppState.currentUser.registered) {
+          document.getElementById('registerModal').classList.remove('hidden');
+          return;
+        }
+
+        renderUI();
+      }).getInitialData();
+    }
+
+    function initCalendar() {
+      const calendarEl = document.getElementById('calendar');
+      AppState.calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'timeGridWeek',
+        locale: 'ja',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        slotMinTime: '08:00:00',
+        slotMaxTime: '20:00:00',
+        allDaySlot: false,
+        height: 'auto'
+      });
+      AppState.calendar.render();
+    }
+
+    function renderUI() {
+      const u = AppState.currentUser;
+      document.getElementById('userInfo').innerText = `${u.name} (${u.dept}) / ${u.role}`;
+
+      // ADMIN専用パネルの制御
+      if (u.role === 'ADMIN') {
+        document.getElementById('adminPanel').classList.remove('hidden');
+      }
+
+      // ダッシュボード更新
+      document.getElementById('statEquip').innerText = AppState.equipments.length;
+      document.getElementById('statDisabled').innerText = AppState.equipments.filter(e => e.status === '利用不可').length;
+      document.getElementById('statBookings').innerText = AppState.logs.length;
+      document.getElementById('statUsers').innerText = AppState.users.length;
+
+      // 備品セレクト作成
+      const equipSelect = document.getElementById('equipSelect');
+      equipSelect.innerHTML = AppState.equipments.map(e => 
+        `<option value="${e.id}">${e.name} (${e.location})</option>`
+      ).join('');
+      updateEquipInfo();
+
+      // 予約一覧 & カレンダーイベント表示
+      renderLogs();
+      updateCalendarEvents();
+    }
+
+    function updateEquipInfo() {
+      const selectedId = document.getElementById('equipSelect').value;
+      const equip = AppState.equipments.find(e => e.id === selectedId);
+      if (equip) {
+        document.getElementById('infoLocation').innerText = equip.location || '未設定';
+        document.getElementById('infoTraining').innerText = equip.requiredTraining || 'なし';
+      }
+    }
+
+    // 講習チェック ＆ 予約実行
+    function handleBooking(e) {
+      e.preventDefault();
+      const u = AppState.currentUser;
+      const equipId = document.getElementById('equipSelect').value;
+      const equip = AppState.equipments.find(e => e.id === equipId);
+
+      // USERS権限の場合は講習済みかチェック
+      if (u.role !== 'ADMIN' && equip.requiredTraining && equip.requiredTraining !== 'なし') {
+        if (!u.trainings.includes(equip.requiredTraining)) {
+          alert(`【予約エラー】\nこの備品の利用には「${equip.requiredTraining}」の受講が必要です。`);
+          return;
+        }
+      }
+
+      const booking = {
+        equipId: equip.id,
+        equipName: equip.name,
+        userName: u.name,
+        start: document.getElementById('startTime').value,
+        end: document.getElementById('endTime').value,
+        purpose: document.getElementById('purpose').value
+      };
+
+      document.getElementById('btnSubmit').disabled = true;
+      document.getElementById('btnSubmit').innerText = '送信中...';
+
+      google.script.run.withSuccessHandler(data => {
+        AppState.logs = data.logs;
+        document.getElementById('btnSubmit').disabled = false;
+        document.getElementById('btnSubmit').innerText = '✓ 予約する';
+        renderUI();
+        alert('予約が完了しました。');
+      }).createBooking(booking);
+    }
+
+    // 予約一覧描画
+    function renderLogs() {
+      const logList = document.getElementById('logList');
+      const filtered = AppState.logs.filter(l => {
+        if (AppState.filterMode === 'my') return l.userEmail === AppState.currentUser.email;
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        logList.innerHTML = `<div class="text-center text-gray-400 py-4">予約はありません</div>`;
+        return;
+      }
+
+      logList.innerHTML = filtered.map(l => {
+        const isMine = l.userEmail === AppState.currentUser.email;
+        const canDelete = isMine || AppState.currentUser.role === 'ADMIN';
+
+        return `
+          <div class="border rounded p-2 bg-gray-50 flex justify-between items-center">
+            <div>
+              <div class="font-bold text-gray-800">${l.equipName}</div>
+              <div class="text-gray-500">${l.start.replace('T', ' ')} ～ ${l.end.replace('T', ' ')}</div>
+              <div class="text-gray-400">${l.purpose} (${l.userEmail})</div>
+            </div>
+            ${canDelete ? `<button onclick="handleCancel('${l.id}', '${l.calendarEventId}')" class="text-red-600 hover:text-red-800 border border-red-300 rounded px-2 py-0.5">削除</button>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function handleCancel(bookingId, calendarEventId) {
+      if (!confirm('予約を取り消しますか？（Googleカレンダーからも削除されます）')) return;
+      google.script.run.withSuccessHandler(data => {
+        AppState.logs = data.logs;
+        renderUI();
+      }).cancelBooking(bookingId, calendarEventId);
+    }
+
+    function updateCalendarEvents() {
+      AppState.calendar.removeAllEvents();
+      const events = AppState.logs.map(l => ({
+        id: l.id,
+        title: `${l.equipName} (${l.userEmail})`,
+        start: l.start,
+        end: l.end,
+        backgroundColor: l.userEmail === AppState.currentUser.email ? '#047857' : '#4b5563'
+      }));
+      AppState.calendar.addEventSource(events);
+    }
+
+    function filterLogs(mode) {
+      AppState.filterMode = mode;
+      document.getElementById('btnFilterMy').className = mode === 'my' ? 'px-2 py-1 bg-gray-700 text-white rounded-l' : 'px-2 py-1 bg-gray-200 text-gray-700 rounded-l';
+      document.getElementById('btnFilterAll').className = mode === 'all' ? 'px-2 py-1 bg-gray-700 text-white rounded-r' : 'px-2 py-1 bg-gray-200 text-gray-700 rounded-r';
+      renderLogs();
+    }
+
+    function handleRegister(e) {
+      e.preventDefault();
+      const name = document.getElementById('regName').value;
+      const dept = document.getElementById('regDept').value;
+      google.script.run.withSuccessHandler(data => {
+        document.getElementById('registerModal').classList.add('hidden');
+        AppState.currentUser = data.currentUser;
+        AppState.users = data.users;
+        renderUI();
+      }).registerUser(name, dept);
+    }
+  </script>
+</body>
+</html>
